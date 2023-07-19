@@ -265,6 +265,22 @@ namespace FASTER.core
         public BasicContext<Key, Value, Input, Output, Context, Functions> BasicContext => bContext;
 
         #region IFasterContext
+
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Status ReadAtAddressOrKey(ref Key key, long logicalAddress, ref Input input, ref Output output, Context userContext = default, long serialNo = 0)
+        {
+            UnsafeResumeThread();
+            try
+            {
+                return fht.ContextReadAtAddressOrKey(ref key, logicalAddress, ref input, ref output, userContext, FasterSession, serialNo);
+            }
+            finally
+            {
+                UnsafeSuspendThread();
+            }
+        }
+
         /// <inheritdoc/>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Status Read(ref Key key, ref Input input, ref Output output, Context userContext = default, long serialNo = 0)
@@ -1012,6 +1028,31 @@ namespace FASTER.core
             #region IFunctions - Reads
             public bool SingleReader(ref Key key, ref Input input, ref Value value, ref Output dst, ref RecordInfo recordInfo, ref ReadInfo readInfo)
                 => _clientSession.functions.SingleReader(ref key, ref input, ref value, ref dst, ref readInfo);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public bool ConcurrentReaderValidAndNonSealed(ref Key key, ref Input input, ref Value value, ref Output dst, ref RecordInfo recordInfo, ref ReadInfo readInfo, out EphemeralLockResult lockResult)
+            {
+                lockResult = EphemeralLockResult.Success;
+                if (_clientSession.fht.DoEphemeralLocking)
+                {
+                    lockResult = recordInfo.TryLockShared() ? EphemeralLockResult.Success : EphemeralLockResult.Failed;
+                    if (lockResult == EphemeralLockResult.Failed || recordInfo.IsSealed || recordInfo.Invalid)
+                        return false;
+                    try
+                    {
+                        return _clientSession.functions.ConcurrentReader(ref key, ref input, ref value, ref dst, ref readInfo);
+                    }
+                    finally
+                    {
+                        recordInfo.UnlockShared();
+                    }
+                } else
+                {
+                    if (recordInfo.IsSealed || recordInfo.Invalid)
+                        return false;
+                    return _clientSession.functions.ConcurrentReader(ref key, ref input, ref value, ref dst, ref readInfo); ;
+                }
+            }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public bool ConcurrentReader(ref Key key, ref Input input, ref Value value, ref Output dst, ref RecordInfo recordInfo, ref ReadInfo readInfo, out EphemeralLockResult lockResult)

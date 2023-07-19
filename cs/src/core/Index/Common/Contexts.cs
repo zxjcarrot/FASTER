@@ -84,6 +84,7 @@ namespace FASTER.core
         /// </summary>
         ALLOCATE_FAILED,
 
+        RETRY_WITH_HASH_INDEX,
         /// <summary>
         /// An internal code to reserve ranges in the <see cref="OperationStatus"/> enumeration.
         /// </summary>

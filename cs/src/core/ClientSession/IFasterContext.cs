@@ -44,6 +44,8 @@ namespace FASTER.core
         /// <returns>Outputs completed by this operation</returns>
         ValueTask<CompletedOutputIterator<Key, Value, Input, Output, Context>> CompletePendingWithOutputsAsync(bool waitForCommit = false, CancellationToken token = default);
 
+        Status ReadAtAddressOrKey(ref Key key, long logicalAddress, ref Input input, ref Output output, Context userContext = default, long serialNo = 0);
+        
         /// <summary>
         /// Read operation
         /// </summary>
