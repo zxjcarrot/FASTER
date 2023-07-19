@@ -207,6 +207,21 @@ namespace FASTER.core
         public ValueTask<CompletedOutputIterator<Key, Value, Input, Output, Context>> CompletePendingWithOutputsAsync(bool waitForCommit = false, CancellationToken token = default)
             => this.clientSession.CompletePendingWithOutputsAsync(waitForCommit, token);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Status ReadAtAddressOrKey(ref Key key, long logicalAddress, ref Input input, ref Output output, Context userContext = default, long serialNo = 0)
+        {
+            Debug.Assert(!clientSession.fht.epoch.ThisInstanceProtected());
+            clientSession.UnsafeResumeThread();
+            try
+            {
+                return clientSession.fht.ContextReadAtAddressOrKey(ref key, logicalAddress, ref input, ref output, userContext, FasterSession, serialNo);
+            }
+            finally
+            {
+                clientSession.UnsafeSuspendThread();
+            }
+        }
+
         /// <inheritdoc/>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Status Read(ref Key key, ref Input input, ref Output output, Context userContext = default, long serialNo = 0)
@@ -562,6 +577,16 @@ namespace FASTER.core
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public bool SingleReader(ref Key key, ref Input input, ref Value value, ref Output dst, ref RecordInfo recordInfo, ref ReadInfo readInfo)
                 => _clientSession.functions.SingleReader(ref key, ref input, ref value, ref dst, ref readInfo);
+
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public bool ConcurrentReaderValidAndNonSealed(ref Key key, ref Input input, ref Value value, ref Output dst, ref RecordInfo recordInfo, ref ReadInfo readInfo, out EphemeralLockResult lockResult)
+            {
+                lockResult = EphemeralLockResult.Success;
+                if (recordInfo.IsSealed || recordInfo.Invalid)
+                    return false;
+                return _clientSession.functions.ConcurrentReader(ref key, ref input, ref value, ref dst, ref readInfo);
+            }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public bool ConcurrentReader(ref Key key, ref Input input, ref Value value, ref Output dst, ref RecordInfo recordInfo, ref ReadInfo readInfo, out EphemeralLockResult lockResult)

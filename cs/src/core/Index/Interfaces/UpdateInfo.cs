@@ -227,5 +227,7 @@ namespace FASTER.core
         /// What actions FASTER should perform on a false return from the IFunctions method
         /// </summary>
         public ReadAction Action { get; set; }
+
+        public long PhysicalAddress { get; internal set; }
     }
 }
