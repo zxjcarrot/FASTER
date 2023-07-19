@@ -52,6 +52,10 @@ namespace FASTER.core
             => clientSession.CompletePendingWithOutputsAsync(waitForCommit, token);
 
         /// <inheritdoc/>
+        public Status ReadAtAddressOrKey(ref Key key, long logicalAddress, ref Input input, ref Output output, Context userContext = default, long serialNo = 0)
+            => clientSession.ReadAtAddressOrKey(ref key, logicalAddress, ref input, ref output, userContext, serialNo);
+
+        /// <inheritdoc/>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Status Read(ref Key key, ref Input input, ref Output output, Context userContext = default, long serialNo = 0)
             => clientSession.Read(ref key, ref input, ref output, userContext, serialNo);

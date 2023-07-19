@@ -168,6 +168,153 @@ namespace FASTER.core
             return status;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal OperationStatus InternalReadAtAddressOrKey<Input, Output, Context, FasterSession>(long address, ref Key key, ref Input input, ref Output output, ref Context userContext, FasterSession fasterSession, long lsn)
+            where FasterSession : IFasterSession<Key, Value, Input, Output, Context>
+        {
+
+            RecordSource<Key, Value> recSrc = default;
+
+            OperationStatus status;
+            if (Utility.IsReadCache(address))
+            {
+                Debug.Assert(UseReadCache);
+
+                recSrc.Set(address, readcache);
+
+                if (recSrc.LogicalAddress >= readcache.SafeReadOnlyAddress)
+                {
+                    return OperationStatus.RETRY_WITH_HASH_INDEX;
+                }
+
+                recSrc.SetPhysicalAddress();
+                ref var srcRecordInfo = ref recSrc.GetInfo();
+
+                if (srcRecordInfo.IsSealed || srcRecordInfo.Invalid)
+                {
+                    return OperationStatus.RETRY_WITH_HASH_INDEX;
+                }
+
+                ReadInfo readInfo = new()
+                {
+                    Version = fasterSession.Ctx.version,
+                    Address = recSrc.LogicalAddress | Constants.kReadCacheBitMask,
+                    RecordInfo = srcRecordInfo,
+                    PhysicalAddress = recSrc.PhysicalAddress
+                };
+
+                Debug.Assert(srcRecordInfo.Tombstone == false);
+
+                ref Value recordValue = ref recSrc.GetValue();
+
+                if (fasterSession.ConcurrentReader(ref key, ref input, ref recSrc.GetValue(), ref output, ref srcRecordInfo, ref readInfo, out recSrc.ephemeralLockResult))
+                    return OperationStatus.SUCCESS;
+                if (recSrc.ephemeralLockResult == EphemeralLockResult.Failed)
+                    return OperationStatus.RETRY_LATER;
+                if (readInfo.Action == ReadAction.CancelOperation)
+                    return OperationStatus.CANCELED;
+                if (readInfo.Action == ReadAction.Expire)
+                    return OperationStatusUtils.AdvancedOpCode(OperationStatus.NOTFOUND, StatusCode.Expired);
+                return OperationStatus.NOTFOUND;
+            }
+
+
+            recSrc.Set(address, hlog);
+
+            // V threads cannot access V+1 records. Use the latest logical address rather than the traced address (logicalAddress) per comments in AcquireCPRLatchRMW.
+            //if (fasterSession.Ctx.phase == Phase.PREPARE && IsEntryVersionNew(ref stackCtx.hei.entry))
+            //    return OperationStatus.CPR_SHIFT_DETECTED; // Pivot thread; retry
+
+            if (recSrc.LogicalAddress >= hlog.SafeReadOnlyAddress)
+            {
+                recSrc.SetPhysicalAddress();
+                // Mutable region (even fuzzy region is included here)
+                //return ReadFromMutableRegion(ref key, ref input, ref output, useStartAddress, ref stackCtx, ref pendingContext, fasterSession);
+                ref var srcRecordInfo = ref recSrc.GetInfo();
+
+                if (srcRecordInfo.IsSealed)
+                {
+                    return OperationStatus.RETRY_WITH_HASH_INDEX;
+                }
+
+                ReadInfo readInfo = new()
+                {
+                    Version = fasterSession.Ctx.version,
+                    Address = recSrc.LogicalAddress,
+                    RecordInfo = srcRecordInfo,
+                    PhysicalAddress = recSrc.PhysicalAddress
+                };
+
+                status = OperationStatus.SUCCESS;
+
+                if (srcRecordInfo.Tombstone)
+                    return OperationStatus.NOTFOUND;
+
+                if (fasterSession.ConcurrentReader(ref key, ref input, ref recSrc.GetValue(), ref output, ref srcRecordInfo, ref readInfo, out recSrc.ephemeralLockResult))
+                    return OperationStatus.SUCCESS;
+                if (recSrc.ephemeralLockResult == EphemeralLockResult.Failed)
+                    return OperationStatus.RETRY_LATER;
+                if (readInfo.Action == ReadAction.CancelOperation)
+                    return OperationStatus.CANCELED;
+                if (readInfo.Action == ReadAction.Expire)
+                    return OperationStatusUtils.AdvancedOpCode(OperationStatus.NOTFOUND, StatusCode.Expired);
+                return OperationStatus.NOTFOUND;
+            }
+            else if (recSrc.LogicalAddress >= hlog.HeadAddress)
+            {
+                recSrc.SetPhysicalAddress();
+                // Immutable region
+                //status = ReadFromImmutableRegion(ref key, ref input, ref output, ref userContext, lsn, useStartAddress, ref stackCtx, ref pendingContext, fasterSession);
+                /*if (status == OperationStatus.ALLOCATE_FAILED && pendingContext.IsAsync)    // May happen due to CopyToTailFromReadOnly
+                    goto CreatePendingContext;*/
+
+                ref var srcRecordInfo = ref recSrc.GetInfo();
+                if (srcRecordInfo.IsSealed)
+                {
+                    return OperationStatus.RETRY_WITH_HASH_INDEX;
+                }
+                ReadInfo readInfo = new()
+                {
+                    Version = fasterSession.Ctx.version,
+                    Address = recSrc.LogicalAddress,
+                    RecordInfo = srcRecordInfo,
+                    PhysicalAddress = recSrc.PhysicalAddress
+                };
+
+                if (srcRecordInfo.Tombstone)
+                    return OperationStatus.NOTFOUND;
+                ref Value recordValue = ref recSrc.GetValue();
+
+                if (fasterSession.ConcurrentReader(ref key, ref input, ref recSrc.GetValue(), ref output, ref srcRecordInfo, ref readInfo, out recSrc.ephemeralLockResult))
+                    return OperationStatus.SUCCESS;
+                if (recSrc.ephemeralLockResult == EphemeralLockResult.Failed)
+                    return OperationStatus.RETRY_LATER;
+                if (readInfo.Action == ReadAction.CancelOperation)
+                    return OperationStatus.CANCELED;
+                if (readInfo.Action == ReadAction.Expire)
+                    return OperationStatusUtils.AdvancedOpCode(OperationStatus.NOTFOUND, StatusCode.Expired);
+                return OperationStatus.NOTFOUND;
+            }
+            else if (recSrc.LogicalAddress >= hlog.BeginAddress)
+            {
+                // Note: we do not lock here; we wait until reading from disk, then lock in the InternalContinuePendingRead chain.
+                if (hlog.IsNullDevice)
+                    return OperationStatus.NOTFOUND;
+                // Record is on disk, revert to hash-index-based lookup
+                status = OperationStatus.RETRY_WITH_HASH_INDEX;
+            }
+            else
+            {
+                // No record found
+                //Debug.Assert(!fasterSession.IsManualLocking || LockTable.IsLocked(ref key, ref stackCtx.hei), "A Lockable-session Read() of a non-existent key requires a LockTable lock");
+
+                // Address is invalid
+                status = OperationStatus.RETRY_WITH_HASH_INDEX;
+            }
+
+            return status;
+        }
+
         private bool ReadFromCache<Input, Output, Context, FasterSession>(ref Key key, ref Input input, ref Output output, ref OperationStackContext<Key, Value> stackCtx,
                                     ref PendingContext<Input, Output, Context> pendingContext, FasterSession fasterSession, out OperationStatus status)
             where FasterSession : IFasterSession<Key, Value, Input, Output, Context>
@@ -222,7 +369,8 @@ namespace FASTER.core
             {
                 Version = fasterSession.Ctx.version,
                 Address = stackCtx.recSrc.LogicalAddress,
-                RecordInfo = srcRecordInfo
+                RecordInfo = srcRecordInfo,
+                PhysicalAddress = stackCtx.recSrc.PhysicalAddress
             };
 
             // If we are starting from a specified address in the immutable region, we may have a Sealed record from a previous RCW.
@@ -266,7 +414,8 @@ namespace FASTER.core
             {
                 Version = fasterSession.Ctx.version,
                 Address = stackCtx.recSrc.LogicalAddress,
-                RecordInfo = srcRecordInfo
+                RecordInfo = srcRecordInfo,
+                PhysicalAddress = stackCtx.recSrc.PhysicalAddress
             };
 
             // If we are starting from a specified address in the immutable region, we may have a Sealed record from a previous RCW.

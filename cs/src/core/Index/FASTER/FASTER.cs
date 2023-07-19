@@ -16,7 +16,7 @@ namespace FASTER.core
 {
     public partial class FasterKV<Key, Value> : FasterBase, IFasterKV<Key, Value>
     {
-        internal readonly AllocatorBase<Key, Value> hlog;
+        public readonly AllocatorBase<Key, Value> hlog;
         internal readonly AllocatorBase<Key, Value> readcache;
 
         /// <summary>
@@ -592,6 +592,24 @@ namespace FASTER.core
             fasterSession.Ctx.serialNum = serialNo;
             return status;
         }
+
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal Status ContextReadAtAddressOrKey<Input, Output, Context, FasterSession>(ref Key key, long addr, ref Input input, ref Output output, Context context, FasterSession fasterSession, long serialNo)
+    where FasterSession : IFasterSession<Key, Value, Input, Output, Context>
+        {
+
+            var status = InternalReadAtAddressOrKey(addr, ref key, ref input, ref output, ref context, fasterSession, serialNo);
+
+            if (status == OperationStatus.SUCCESS)
+            {
+                return Status.CreateFound();
+            }
+
+            Debug.Assert(OperationStatus.RETRY_WITH_HASH_INDEX == status);
+            return ContextRead(ref key, ref input, ref output, context, fasterSession, serialNo);
+        }
+
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal Status ContextRead<Input, Output, Context, FasterSession>(ref Key key, ref Input input, ref Output output, ref ReadOptions readOptions, out RecordMetadata recordMetadata, Context context,

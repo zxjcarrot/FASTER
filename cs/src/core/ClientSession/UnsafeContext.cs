@@ -62,6 +62,13 @@ namespace FASTER.core
         public ValueTask<CompletedOutputIterator<Key, Value, Input, Output, Context>> CompletePendingWithOutputsAsync(bool waitForCommit = false, CancellationToken token = default)
             => this.clientSession.CompletePendingWithOutputsAsync(waitForCommit, token);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Status ReadAtAddressOrKey(ref Key key, long logicalAddress, ref Input input, ref Output output, Context userContext = default, long serialNo = 0)
+        {
+            Debug.Assert(clientSession.fht.epoch.ThisInstanceProtected());
+            return clientSession.fht.ContextReadAtAddressOrKey(ref key, logicalAddress, ref input, ref output, userContext, FasterSession, serialNo);
+        }
+
         /// <inheritdoc/>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Status Read(ref Key key, ref Input input, ref Output output, Context userContext = default, long serialNo = 0)
