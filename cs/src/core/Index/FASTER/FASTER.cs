@@ -598,14 +598,17 @@ namespace FASTER.core
         internal Status ContextReadAtAddressOrKey<Input, Output, Context, FasterSession>(ref Key key, long addr, ref Input input, ref Output output, Context context, FasterSession fasterSession, long serialNo)
     where FasterSession : IFasterSession<Key, Value, Input, Output, Context>
         {
-
+            retry:
             var status = InternalReadAtAddressOrKey(addr, ref key, ref input, ref output, ref context, fasterSession, serialNo);
 
             if (status == OperationStatus.SUCCESS)
             {
                 return Status.CreateFound();
             }
-
+            if (OperationStatus.RETRY_LATER == status)
+            {
+                goto retry;
+            }
             Debug.Assert(OperationStatus.RETRY_WITH_HASH_INDEX == status);
             return ContextRead(ref key, ref input, ref output, context, fasterSession, serialNo);
         }
