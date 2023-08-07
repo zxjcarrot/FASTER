@@ -16,6 +16,9 @@ namespace FASTER.core
     /// </summary>
     public sealed class ManagedLinuxStorageDevice : StorageDeviceBase
     {
+        public static int F_GETFL = 3;
+        public static int F_SETFL = 4;
+        public static int O_DIRECT = 0x00040000;
 		public static class Native
 		{
 			// TODO: C# 9, nuint instead of UIntPtr
@@ -25,6 +28,9 @@ namespace FASTER.core
 			[DllImport("c", SetLastError = true)]
 			public static extern unsafe IntPtr pread(IntPtr fd, void* buf, UIntPtr count, IntPtr offset);
 
+
+			[DllImport("c", SetLastError = true)]
+			public static extern unsafe IntPtr fcntl(IntPtr fd, IntPtr cmd, IntPtr args);
 
             /// <summary>
 			/// http://man7.org/linux/man-pages/man2/pwrite.2.html
@@ -53,7 +59,15 @@ namespace FASTER.core
 			}
 		}
 
-        		/// <summary>
+        public static unsafe bool FileHandleSetODirect(FileStream fileStream) {
+            var fileDescriptor = fileStream.SafeFileHandle.DangerousGetHandle();
+            var oldFlags = (int)Native.fcntl(fileDescriptor, (IntPtr)F_GETFL, (IntPtr)0);
+            var newFlags = oldFlags | O_DIRECT;
+            var ret = Native.fcntl(fileDescriptor, (IntPtr)F_SETFL, (IntPtr)newFlags);
+            return (int)ret == 0;
+        }
+
+        /// <summary>
 		/// Performs a <c>pwrite</c> on a filestream at an offset to a buffer.
 		/// </summary>
 		/// <param name="fileStream">The file to write to.</param>
@@ -572,16 +586,21 @@ namespace FASTER.core
         private Stream CreateReadHandle(int segmentId)
         {
             const int FILE_FLAG_NO_BUFFERING = 0x20000000;
-            FileOptions fo =
-                FileOptions.WriteThrough |
-                FileOptions.Asynchronous |
-                FileOptions.None;
-            if (!osReadBuffering)
-                fo |= (FileOptions)FILE_FLAG_NO_BUFFERING;
+            FileOptions fo = FileOptions.None;
+            
 
             var logReadHandle = new FileStream(
                 GetSegmentName(segmentId), FileMode.OpenOrCreate,
                 FileAccess.Read, FileShare.ReadWrite, 512, fo);
+
+            if (!osReadBuffering) {
+                var res = FileHandleSetODirect(logReadHandle);
+                if (res != true) {        
+                    //int error = Marshal.GetLastPInvokeError();
+                    //Console.WriteLine($"Last p/invoke error: {error}");
+                }
+                Debug.Assert(res);
+            }
 
             return logReadHandle;
         }

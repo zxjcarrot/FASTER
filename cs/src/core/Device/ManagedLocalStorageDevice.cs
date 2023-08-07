@@ -160,17 +160,17 @@ namespace FASTER.core
                     }
 
                     // FileStream.ReadAsync is not thread-safe hence need a lock here
-                    lock (this)
-                    {
+                    //lock (this)
+                    //{
                         readTask = logReadHandle.ReadAsync(umm.Memory).AsTask();
-                    }
+                    //}
 #else
                     memory = pool.Get((int)readLength);
                     // FileStream.ReadAsync is not thread-safe hence need a lock here
-                    lock (this)
-                    {
+                   // lock (this)
+                    //{
                         readTask = logReadHandle.ReadAsync(memory.buffer, 0, (int)readLength);
-                    }
+                    //}
 #endif
                 }
             }
@@ -204,17 +204,17 @@ namespace FASTER.core
                         }
 
                         // FileStream.ReadAsync is not thread-safe hence need a lock here
-                        lock (this)
-                        {
+                        //lock (this)
+                        //{
                             readTask = logReadHandle.ReadAsync(umm.Memory).AsTask();
-                        }
+                        //}
 #else
                         memory = pool.Get((int)readLength);
                         // FileStream.ReadAsync is not thread-safe hence need a lock here
-                        lock (this)
-                        {
+                        //lock (this)
+                        //{
                             readTask = logReadHandle.ReadAsync(memory.buffer, 0, (int)readLength);
-                        }
+                        //}
 #endif
                     }
                     catch
@@ -315,10 +315,10 @@ namespace FASTER.core
                     }
 
                     // FileStream.WriteAsync is not thread-safe hence need a lock here
-                    lock (this)
-                    {
+                    //lock (this)
+                    //{
                         writeTask = logWriteHandle.WriteAsync(umm.Memory).AsTask();
-                    }
+                    //}
 #else
                     memory = pool.Get((int)numBytesToWrite);
                     unsafe
@@ -329,10 +329,10 @@ namespace FASTER.core
                         }
                     }
                     // FileStream.WriteAsync is not thread-safe hence need a lock here
-                    lock (this)
-                    {
+                    //lock (this)
+                    //{
                         writeTask = logWriteHandle.WriteAsync(memory.buffer, 0, (int)numBytesToWrite);
-                    }
+                    //}
 #endif
                 }
             }
@@ -366,10 +366,10 @@ namespace FASTER.core
                         }
 
                         // FileStream.WriteAsync is not thread-safe hence need a lock here
-                        lock (this)
-                        {
+                        //lock (this)
+                        //{
                             writeTask = logWriteHandle.WriteAsync(umm.Memory).AsTask();
-                        }
+                        //}
 #else
                         memory = pool.Get((int)numBytesToWrite);
                         unsafe
@@ -380,10 +380,10 @@ namespace FASTER.core
                             }
                         }
                         // FileStream.WriteAsync is not thread-safe hence need a lock here
-                        lock (this)
-                        {
+                        //lock (this)
+                        //{
                             writeTask = logWriteHandle.WriteAsync(memory.buffer, 0, (int)numBytesToWrite);
-                        }
+                        //}
 #endif
                     }
                     catch
