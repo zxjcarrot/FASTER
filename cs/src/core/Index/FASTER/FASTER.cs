@@ -17,7 +17,7 @@ namespace FASTER.core
     public partial class FasterKV<Key, Value> : FasterBase, IFasterKV<Key, Value>
     {
         public readonly AllocatorBase<Key, Value> hlog;
-        internal readonly AllocatorBase<Key, Value> readcache;
+        public readonly AllocatorBase<Key, Value> readcache;
 
         /// <summary>
         /// Compares two keys

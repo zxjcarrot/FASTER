@@ -14,7 +14,7 @@ using System.Threading;
 
 namespace FASTER.core
 {
-    internal unsafe sealed class VariableLengthBlittableAllocator<Key, Value> : AllocatorBase<Key, Value>
+    public unsafe sealed class VariableLengthBlittableAllocator<Key, Value> : AllocatorBase<Key, Value>
     {
         public const int kRecordAlignment = 8; // RecordInfo has a long field, so it should be aligned to 8-bytes
 
@@ -130,7 +130,7 @@ namespace FASTER.core
         {
             return ref KeyLength.AsRef((byte*)physicalAddress + RecordInfo.GetLength());
         }
-
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override ref Value GetValue(long physicalAddress)
         {
             return ref ValueLength.AsRef((byte*)ValueOffset(physicalAddress));
@@ -143,10 +143,12 @@ namespace FASTER.core
             return ref ValueLength.AsRef(src);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private long ValueOffset(long physicalAddress)
             => physicalAddress + RecordInfo.GetLength() + AlignedKeySize(physicalAddress);
 
-        private int AlignedKeySize(long physicalAddress)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int AlignedKeySize(long physicalAddress)
         {
             int len = KeyLength.GetLength(ref GetKey(physicalAddress));
             return (len + kRecordAlignment - 1) & (~(kRecordAlignment - 1));

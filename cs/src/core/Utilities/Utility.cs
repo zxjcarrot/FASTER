@@ -142,7 +142,7 @@ namespace FASTER.core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static bool IsReadCache(long address) => (address & Constants.kReadCacheBitMask) != 0;
+        public static bool IsReadCache(long address) => (address & Constants.kReadCacheBitMask) != 0;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static long AbsoluteAddress(long address) => address & ~Constants.kReadCacheBitMask;

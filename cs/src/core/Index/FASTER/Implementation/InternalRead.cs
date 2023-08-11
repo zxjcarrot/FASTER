@@ -190,7 +190,7 @@ namespace FASTER.core
                 recSrc.SetPhysicalAddress();
                 ref var srcRecordInfo = ref recSrc.GetInfo();
 
-                if (srcRecordInfo.IsSealed || srcRecordInfo.Invalid)
+                if (srcRecordInfo.IsSealed || srcRecordInfo.Invalid || comparer.Equals(ref recSrc.GetKey(), ref key) == false)
                 {
                     return OperationStatus.RETRY_WITH_HASH_INDEX;
                 }
@@ -203,7 +203,7 @@ namespace FASTER.core
                     PhysicalAddress = recSrc.PhysicalAddress
                 };
 
-                Debug.Assert(srcRecordInfo.Tombstone == false);
+                //Debug.Assert(srcRecordInfo.Tombstone == false);
 
                 ref Value recordValue = ref recSrc.GetValue();
 
@@ -232,7 +232,7 @@ namespace FASTER.core
                 //return ReadFromMutableRegion(ref key, ref input, ref output, useStartAddress, ref stackCtx, ref pendingContext, fasterSession);
                 ref var srcRecordInfo = ref recSrc.GetInfo();
 
-                if (srcRecordInfo.IsSealed)
+                if (srcRecordInfo.IsSealed || comparer.Equals(ref recSrc.GetKey(), ref key) == false)
                 {
                     return OperationStatus.RETRY_WITH_HASH_INDEX;
                 }
@@ -247,8 +247,8 @@ namespace FASTER.core
 
                 status = OperationStatus.SUCCESS;
 
-                if (srcRecordInfo.Tombstone)
-                    return OperationStatus.NOTFOUND;
+                //if (srcRecordInfo.Tombstone)
+                //    return OperationStatus.NOTFOUND;
 
                 if (fasterSession.ConcurrentReader(ref key, ref input, ref recSrc.GetValue(), ref output, ref srcRecordInfo, ref readInfo, out recSrc.ephemeralLockResult))
                     return OperationStatus.SUCCESS;
@@ -269,7 +269,7 @@ namespace FASTER.core
                     goto CreatePendingContext;*/
 
                 ref var srcRecordInfo = ref recSrc.GetInfo();
-                if (srcRecordInfo.IsSealed)
+                if (srcRecordInfo.IsSealed || comparer.Equals(ref recSrc.GetKey(), ref key) == false)
                 {
                     return OperationStatus.RETRY_WITH_HASH_INDEX;
                 }
